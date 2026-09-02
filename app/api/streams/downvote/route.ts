@@ -29,12 +29,31 @@ export async function POST(req: NextRequest) {
     }
 
     const data = UpvoteSchema.parse(await req.json());
-    await prismaClient.upvote.create({
-      data: {
-        userId: user.id,
-        streamId: data.streamId,
-      },
+    
+    // Check if already upvoted (we don't have downvote in schema, so we remove upvote)
+    const existingUpvote = await prismaClient.upvote.findUnique({
+      where: {
+        userId_streamId: {
+          userId: user.id,
+          streamId: data.streamId,
+        }
+      }
     });
+
+    if (existingUpvote) {
+      // Remove upvote (acting as downvote toggle)
+      await prismaClient.upvote.delete({
+        where: {
+          userId_streamId: {
+            userId: user.id,
+            streamId: data.streamId,
+          }
+        },
+      });
+      return NextResponse.json({ msg: "Downvoted" });
+    } else {
+      return NextResponse.json({ msg: "Already not upvoted" });
+    }
   } catch (error) {
     return NextResponse.json(
       {

@@ -11,9 +11,46 @@ const CreateStreamSchema = z.object({
   url: z.string(),
 });
 
+const PreviewStreamSchema = z.object({
+  url: z.string(),
+});
+
 export async function POST(req: NextRequest) {
   try {
-    const data = CreateStreamSchema.parse(await req.json());
+    const body = await req.json();
+    
+    // Check if this is a preview request (no creatorId)
+    if (!body.creatorId && body.url) {
+      const data = PreviewStreamSchema.parse(body);
+      
+      const isYt = data.url.match(YT_REGEX);
+
+      if (!isYt) {
+        return NextResponse.json(
+          {
+            msg: "Wrong URL format",
+          },
+          { status: 411 }
+        );
+      }
+
+      // Extract YouTube video ID
+      const extractedId = isYt[1];
+
+      const res = await youtubesearchapi.GetVideoDetails(extractedId)
+
+      const thumbnails = res.thumbnail.thumbnails
+      thumbnails.sort((a: {width: number}, b: {width: number}) => a.width < b.width ? -1 : 1)
+
+      return NextResponse.json({
+        title: res.title ?? "Can't find",
+        thumbnail: (thumbnails.length > 1 ? thumbnails[thumbnails.length - 2].url : thumbnails[thumbnails.length - 1].url) ?? "https://imgs.search.brave.com/gLH5Au-TgJmgV1wUTDMsxAE1QN72OVStsJhB4gbGdj8/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/cGl4YWJheS5jb20v/cGhvdG8vMjAxNC8w/NS8wNy8wNi80NC9j/YXQtMzM5NDAwXzY0/MC5qcGc",
+        extractedId,
+      });
+    }
+
+    // Otherwise, create stream
+    const data = CreateStreamSchema.parse(body);
 
     const isYt = data.url.match(YT_REGEX);
 
@@ -55,7 +92,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(
       {
-        msg: "Error while adding a stream",
+        msg: "Error while processing request",
       },
       { status: 411 }
     );
