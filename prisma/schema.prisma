@@ -27,9 +27,16 @@ model Stream {
   bigImg        String    @default("")
   active        Boolean    @default(true)
   userId        String
-
   user          User       @relation(fields: [userId], references: [id])
   upvotes       Upvote[]
+  currentStream CurrentStream?
+}
+
+model CurrentStream{
+  userId            String        @id
+  streamId          String?       @unique
+  stream            Stream?        @relation(fields: [streamId], references: [id])
+
 }
 
 model Upvote {
@@ -38,7 +45,7 @@ model Upvote {
   streamId String
 
   user     User   @relation(fields: [userId], references: [id])
-  stream   Stream @relation(fields: [streamId], references: [id])
+  stream   Stream @relation(fields: [streamId], references: [id], onDelete: Cascade)
 
   @@unique([userId, streamId])
 }
