@@ -81,6 +81,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Check if creatorId is an email, if so find the user by email
+    let targetUserId = data.creatorId;
+    if (data.creatorId.includes('@')) {
+      const creator = await prismaClient.user.findFirst({
+        where: {
+          email: data.creatorId
+        }
+      });
+      if (creator) {
+        targetUserId = creator.id;
+      }
+    }
+
     // Extract YouTube video ID
     const extractedId = isYt[1];
 
@@ -91,15 +104,37 @@ export async function POST(req: NextRequest) {
 
     const stream = await prismaClient.stream.create({
       data: {
-        userId: user.id,
+        userId: targetUserId,
         url: data.url,
         extractedId,
         type: "Youtube",
         title: res.title ?? "Can't find",
         smallImg: (thumbnails.length > 1 ? thumbnails[thumbnails.length - 2].url : thumbnails[thumbnails.length - 1].url) ?? "https://imgs.search.brave.com/gLH5Au-TgJmgV1wUTDMsxAE1QN72OVStsJhB4gbGdj8/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/cGl4YWJheS5jb20v/cGhvdG8vMjAxNC8w/NS8wNy8wNi80NC9j/YXQtMzM5NDAwXzY0/MC5qcGc",
-        bigImg: thumbnails[thumbnails.length - 1].url ?? "https://imgs.search.brave.com/gLH5Au-TgJmgV1wUTDMsxAE1QN72OVStsJhB4gbGdj8/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/cGl4YWJheS5jb20v/cGhvdG8vMjAxNC8w/NS8wNy8wNi80NC9j/YXQtMzM5NDAwXzY0/MC5qcGc"
+        bigImg: thumbnails[thumbnails.length - 1].url ?? "https://imgs.search.brave.com/gLH5Au-TgJmgV1wUTDMsxAE1QN72OVStsJhB4gbGdj8/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/cGl4YWJheS5jb20v/cGhvdG8vMjAxNC8w/NS8wNy8wNi80NC9j/YXQtMzM5NDAwXzY0/MC5qcGc",
+        addedById: user.id
       },
-    })
+    });
+
+    const currentStream = await prismaClient.currentStream.findFirst({
+      where: {
+        userId: targetUserId
+      }
+    });
+
+    if (!currentStream || !currentStream.streamId) {
+      await prismaClient.currentStream.upsert({
+        where: {
+          userId: targetUserId
+        },
+        update: {
+          streamId: stream.id
+        },
+        create: {
+          userId: targetUserId,
+          streamId: stream.id
+        }
+      });
+    }
 
     return NextResponse.json({
       msg: "Added stream",
