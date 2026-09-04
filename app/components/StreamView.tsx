@@ -9,6 +9,7 @@ import { Input } from "../../components/ui/input";
 import { Appbar } from "../components/Appbar";
 import { useSession } from "next-auth/react";
 import axios from "axios";
+import YouTube from "react-youtube";
 
 interface Video {
   id: string;
@@ -207,6 +208,32 @@ export default function StreamView({
     }
   };
 
+  const playNext = async () => {
+    try {
+      const res = await axios.get('/api/streams/next');
+      if (res.data.stream) {
+        // The endpoint returns the stream with smallImg/bigImg which might need mapping
+        const nextStream = res.data.stream;
+        setCurrentVideo({
+          id: nextStream.id,
+          title: nextStream.title,
+          url: `https://www.youtube.com/embed/${nextStream.extractedId}`,
+          thumbnail: nextStream.smallImg || nextStream.bigImg,
+          votes: 0,
+          userVote: 0,
+          hasUpvoted: false
+        });
+        toast.success("Playing next song!");
+        await refreshStreams();
+      } else {
+        toast.info("No more songs in queue");
+      }
+    } catch (error) {
+      console.error("Error playing next:", error);
+      toast.error("Failed to play next song");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-purple-950 to-slate-950">
       <Appbar />
@@ -334,13 +361,22 @@ export default function StreamView({
                 <div className="rounded-lg overflow-hidden bg-slate-900/70 border border-slate-700/50">
                   {currentVideo ? (
                     <div className="aspect-video">
-                      <iframe
+                      <YouTube
+                        videoId={extractVideoId(currentVideo.url) || ""}
+                        opts={{
+                          width: "100%",
+                          height: "100%",
+                          playerVars: {
+                            autoplay: 1,
+                          },
+                        }}
+                        onEnd={() => {
+                          if (isCreator) {
+                            playNext();
+                          }
+                        }}
                         className="w-full h-full"
-                        src={currentVideo.url}
-                        title="Video player"
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
+                        iframeClassName="w-full h-full"
                       />
                     </div>
                   ) : (
@@ -351,31 +387,7 @@ export default function StreamView({
                 </div>
                 {isCreator && (
                   <Button
-                    onClick={async () => {
-                      try {
-                        const res = await axios.get('/api/streams/next');
-                        if (res.data.stream) {
-                          // The endpoint returns the stream with smallImg/bigImg which might need mapping
-                          const nextStream = res.data.stream;
-                          setCurrentVideo({
-                            id: nextStream.id,
-                            title: nextStream.title,
-                            url: `https://www.youtube.com/embed/${nextStream.extractedId}`,
-                            thumbnail: nextStream.smallImg || nextStream.bigImg,
-                            votes: 0,
-                            userVote: 0,
-                            hasUpvoted: false
-                          });
-                          toast.success("Playing next song!");
-                          await refreshStreams();
-                        } else {
-                          toast.info("No more songs in queue");
-                        }
-                      } catch (error) {
-                        console.error("Error playing next:", error);
-                        toast.error("Failed to play next song");
-                      }
-                    }}
+                    onClick={playNext}
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm h-9"
                   >
                     ▶ Play Next
